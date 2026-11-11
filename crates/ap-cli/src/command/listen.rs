@@ -104,12 +104,29 @@ pub struct ListenArgs {
     /// Credential provider to use
     #[arg(long, default_value = "bitwarden")]
     pub provider: String,
+
+    /// Only serve credentials from this folder (name or ID)
+    #[arg(long, env = "AAC_BW_FOLDER")]
+    pub bw_folder: Option<String>,
+
+    /// Only serve credentials from this collection (name or ID)
+    #[arg(long, env = "AAC_BW_COLLECTION")]
+    pub bw_collection: Option<String>,
+
+    /// Only serve credentials owned by this organization (name or ID)
+    #[arg(long, env = "AAC_BW_ORGANIZATION")]
+    pub bw_organization: Option<String>,
 }
 
 impl ListenArgs {
     /// Execute the listen command
     pub async fn run(self, log_rx: Option<super::tui_tracing::LogReceiver>) -> Result<()> {
-        let mut provider = crate::providers::create_provider(&self.provider)?;
+        let scope = crate::providers::ProviderScope {
+            folder: self.bw_folder,
+            collection: self.bw_collection,
+            organization: self.bw_organization,
+        };
+        let mut provider = crate::providers::create_provider(&self.provider, scope)?;
         let pairing_mode = if self.reusable_psk {
             PairingMode::ReusablePsk
         } else if self.psk {

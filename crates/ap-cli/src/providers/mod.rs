@@ -63,10 +63,24 @@ pub trait CredentialProvider: Send + Sync {
     fn lookup(&self, query: &CredentialQuery) -> LookupResult;
 }
 
-/// Create a provider by name.
-pub fn create_provider(name: &str) -> Result<Box<dyn CredentialProvider>> {
+/// Restricts which part of the vault a provider may serve credentials from.
+///
+/// Each field is a name or an ID. Providers that cannot honour a restriction
+/// ignore it.
+#[derive(Debug, Clone, Default)]
+pub struct ProviderScope {
+    /// Only items in this folder.
+    pub folder: Option<String>,
+    /// Only items in this collection.
+    pub collection: Option<String>,
+    /// Only items owned by this organization.
+    pub organization: Option<String>,
+}
+
+/// Create a provider by name, restricted to `scope`.
+pub fn create_provider(name: &str, scope: ProviderScope) -> Result<Box<dyn CredentialProvider>> {
     match name {
-        "bitwarden" => Ok(Box::new(BitwardenProvider::new())),
+        "bitwarden" => Ok(Box::new(BitwardenProvider::new().with_scope(scope))),
         "example" => Ok(Box::new(ExampleProvider::new())),
         _ => bail!("Unknown credential provider: '{name}'. Available: bitwarden, example"),
     }
@@ -148,13 +162,14 @@ mod tests {
 
     #[test]
     fn create_provider_bitwarden() {
-        let provider = create_provider("bitwarden").expect("should create bitwarden provider");
+        let provider = create_provider("bitwarden", ProviderScope::default())
+            .expect("should create bitwarden provider");
         assert_eq!(provider.name(), "Bitwarden");
     }
 
     #[test]
     fn create_provider_unknown() {
-        match create_provider("nonexistent") {
+        match create_provider("nonexistent", ProviderScope::default()) {
             Err(e) => {
                 let msg = format!("{e}");
                 assert!(
@@ -168,7 +183,7 @@ mod tests {
 
     #[test]
     fn create_provider_empty() {
-        assert!(create_provider("").is_err());
+        assert!(create_provider("", ProviderScope::default()).is_err());
     }
 
     // -- MockProvider / trait contract --------------------------------------
